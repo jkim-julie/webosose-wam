@@ -7,27 +7,9 @@
 #include <string>
 #include <unordered_map>
 
-#include <ilm/ilm_control.h>
+#include <libappbridge.h>
 
 #include "WebRuntime.h"
-
-class LibHomeScreen;
-class LibWindowmanager;
-
-class ILMControl
-{
-  public:
-    ILMControl(notificationFunc callback, void *user_data) {
-        ilm_init();
-        ilm_registerNotification(callback, user_data);
-    }
-
-    ~ILMControl(void) {
-        ilm_unregisterNotification();
-        ilm_destroy();
-        fprintf(stderr, "ilm_destory().\r\n");
-    }
-};
 
 class Launcher {
 public:
@@ -65,24 +47,28 @@ public:
   int loop(int argc, const char** argv, volatile sig_atomic_t& e_flag) override;
 };
 
-class WebAppLauncherRuntime  : public WebRuntime {
+class WebAppLauncherRuntime  : public WebRuntime,
+                               public AppBridgeDelegate {
 public:
   int run(int argc, const char** argv) override;
 
-  void notify_ivi_control_cb(ilmObjectType object, t_ilm_uint id,
-                               t_ilm_bool created);
-  static void notify_ivi_control_cb_static (ilmObjectType object,
-                                              t_ilm_uint id,
-                                              t_ilm_bool created,
-                                              void *user_data);
+  // AppBridgeDelegate:
+  void OnActive() override;
+  void OnInactive() override;
+  void OnVisible() override;
+  void OnInvisible() override;
+  void OnSyncDraw() override;
+  void OnFlushDraw() override;
+  void OnTabShortcut() override;
+  void OnScreenMessage(const char* message) override;
+  void OnSurfaceCreated(int id, pid_t pid) override;
+  void OnSurfaceDestroyed(int id, pid_t pid) override;
+  void OnRequestedSurfaceID(int id, pid_t* surface_pid_output) override;
 
 private:
 
   bool init();
-  bool init_wm();
-  bool init_hs();
   int parse_config(const char *file);
-  void setup_surface (int id);
 
   std::string m_id;
   std::string m_role;
@@ -93,14 +79,7 @@ private:
   std::string m_token;
 
   Launcher *m_launcher;
-
-  LibWindowmanager *m_wm = nullptr;
-  LibHomeScreen *m_hs = nullptr;
-  ILMControl *m_ic = nullptr;
-
-  std::map<int, int> m_surfaces;  // pair of <afm:rid, ivi:id>
-
-  bool m_pending_create = false;
+  std::unique_ptr<AppBridge> m_app_bridge;
 };
 
 class SharedBrowserProcessRuntime  : public WebRuntime {
